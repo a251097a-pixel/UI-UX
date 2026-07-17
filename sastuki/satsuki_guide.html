@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>フロアマップ案内</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+      background-color: #f5f5f7;
+      margin: 0;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #1d1d1f;
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    /* タブメニュー（Apple風の洗練された角丸ボタン） */
+    .tab-container {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .tab-button {
+      padding: 10px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 20px;
+      background-color: #e8e8ed;
+      color: #86868b;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .tab-button:hover {
+      background-color: #d2d2d7;
+      color: #1d1d1f;
+    }
+
+    .tab-button.active {
+      background-color: #0071e3;
+      color: #ffffff;
+    }
+
+    /* マップ表示エリア（ノイズ質感ブレンド・完璧なグレージュ一体化） */
+    .map-container {
+      background-color: #C4BCB2; 
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      width: 90%;
+      max-width: 800px;
+      min-height: 400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .floor-content {
+      display: none;
+      width: 100%;
+      text-align: center;
+    }
+
+    .floor-content.active {
+      display: block;
+    }
+
+    /* マップ画像の補正（フチ削り・コントラスト微調整） */
+    .floor-map-img {
+      max-width: 100%;
+      max-height: 500px;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      mask-image: radial-gradient(circle, black 98.5%, transparent 99.5%);
+      -webkit-mask-image: radial-gradient(circle, black 98.5%, transparent 99.5%);
+      filter: contrast(1.03) brightness(1.02);
+    }
+
+    /* 検索バーのスタイル */
+    .search-wrapper {
+      width: 90%;
+      max-width: 800px;
+      margin-top: 24px;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 20px 12px 45px;
+      font-size: 15px;
+      border: 1px solid #d2d2d7;
+      border-radius: 12px;
+      background-color: #ffffff;
+      color: #1d1d1f;
+      outline: none;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .search-input:focus {
+      border-color: #0071e3;
+      box-shadow: 0 0 0 4px rgba(0,113,227,0.15);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #86868b;
+      font-size: 18px;
+      pointer-events: none;
+    }
+
+    /* 部屋情報エリア */
+    .info-container {
+      width: 90%;
+      max-width: 800px;
+      margin-top: 32px;
+    }
+
+    .info-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .info-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1d1d1f;
+      border-left: 4px solid #0071e3;
+      padding-left: 10px;
+    }
+
+    /* 部屋カードのグリッド */
+    .room-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    /* ネームプレートを彷彿とさせる美しいカードデザイン */
+    .room-card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border-left: 4px solid #ccc;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+
+    .room-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+    }
+
+    /* カラー枠線（各フロア・施設タイプのカラーに準拠） */
+    .color-blue { border-left-color: #0071e3; }
+    .color-green { border-left-color: #28a745; }
+    .color-red { border-left-color: #dc3545; }
+    .color-orange { border-left-color: #fd7e14; }
+    .color-gray { border-left-color: #86868b; }
+
+    .room-id-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+
+    .room-id {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #86868b;
+    }
+
+    .floor-badge {
+      font-size: 9px;
+      font-weight: bold;
+      background-color: #f5f5f7;
+      color: #1d1d1f;
+      padding: 2px 6px;
+      border-radius: 10px;
+      border: 1px solid #d2d2d7;
+    }
+
+    .room-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: #1d1d1f;
+      line-height: 1.3;
+      margin-bottom: 6px;
+    }
+
+    /* 担当教員用のバッジ風デザイン */
+    .professor-badge {
+      align-self: flex-start;
+      background-color: #e8f4ff;
+      color: #0071e3;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    /* 紹介文テキスト */
+    .room-desc {
+      font-size: 12px;
+      color: #515154;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>フロアマップ案内</h1>
+
+  <!-- タブ -->
+  <div class="tab-container">
+    <button class="tab-button" onclick="switchFloor(4)">4F</button>
+    <button class="tab-button" onclick="switchFloor(3)">3F</button>
+    <button class="tab-button" onclick="switchFloor(2)">2F</button>
+    <button class="tab-button active" onclick="switchFloor(1)">1F</button>
+  </div>
+
+  <!-- マップ画像 -->
+  <div class="map-container">
+    <div id="floor-1" class="floor-content active">
+      <img src="1F.PNG" alt="1階案内図" class="floor-map-img">
+    </div>
+    <div id="floor-2" class="floor-content">
+      <img src="2F.PNG" alt="2階案内図" class="floor-map-img">
+    </div>
+    <div id="floor-3" class="floor-content">
+      <img src="3F.PNG" alt="3階案内図" class="floor-map-img">
+    </div>
+    <div id="floor-4" class="floor-content">
+      <img src="4F.PNG" alt="4階案内図" class="floor-map-img">
+    </div>
+  </div>
+
+  <!-- 検索バー -->
+  <div class="search-wrapper">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="room-search" class="search-input" placeholder="部屋番号、部屋名、先生のお名前で検索..." oninput="handleSearch()">
+  </div>
+
+  <!-- 部屋情報一覧エリア -->
+  <div class="info-container">
+    <div class="info-header">
+      <div class="info-title"><span id="floor-title-label">1F</span> の施設・部屋一覧</div>
+    </div>
+    <div id="room-list-container" class="room-list">
+      <!-- JavaScriptで自動生成 -->
+    </div>
+  </div>
+
+  <script>
+    // ★ 各階の部屋データ（ユーザー様に登録していただいた先生方の正確なデータです！）
+    const floorData = {
+      1: [
+        { id: "3101", name: "大教室 3101", prof: "", desc: "", color: "color-red" },
+        { id: "iArena", name: "大型実験室 iArena", prof: "", desc: "", color: "color-red" },
+        { id: "iStudio", name: "iStudio", prof: "", desc: "", color: "color-orange" },
+        { id: "Study Hall", name: "Study Hall", prof: "", desc: "", color: "color-gray" },
+        { id: "3102", name: "教室 3102", prof: "", desc: "", color: "color-orange" },
+        { id: "3103", name: "教室 3103", prof: "", desc: "", color: "color-orange" },
+        { id: "3104", name: "教室 3104", prof: "", desc: "", color: "color-orange" }
+      ],
+      2: [
+        { id: "Sandbox", name: "PC教室 Sandbox", prof: "", desc: "", color: "color-green" },
+        { id: "3202", name: "教室 3202", prof: "", desc: "", color: "color-green" },
+        { id: "Fabrication Lab", name: "Fab Lab", prof: "大岡先生ゼミ室", desc: "", color: "color-green" },
+        { id: "3201", name: "教室 3201", prof: "", desc: "", color: "color-green" },
+        { id: "3203", name: "教室 3203", prof: "", desc: "", color: "color-green" },
+        { id: "3204", name: "教室 3204", prof: "", desc: "", color: "color-green" }
+      ],
+      3: [
+        { id: "Lab 1-2", name: "研究室 Lab 1・2", prof: "", desc: "", color: "color-green" },
+        { id: "Lab 3-5", name: "研究室 Lab 3-5", prof: "永田先生ゼミ室", desc: "", color: "color-green" },
+        { id: "Lab 6-7", name: "研究室 Lab 6・7", prof: "津村先生ゼミ室", desc: "", color: "color-green" },
+        { id: "Seminar 1", name: "ゼミ室 1", prof: "小塩先生ゼミ室", desc: "", color: "color-green" },
+        { id: "301-308", name: "教員室 301", prof: "砂原先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 302", prof: "陳先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 303", prof: "邵先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 304", prof: "小塩先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 305", prof: "鈴木先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 306", prof: "津村先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 307", prof: "大岡先生", desc: "", color: "color-gray" },
+        { id: "301-308", name: "教員室 308", prof: "永田先生", desc: "", color: "color-gray" },
+        { id: "Office", name: "事務室", prof: "事務スタッフ", desc: "", color: "color-gray" }
+      ],
+      4: [
+        { id: "Lab 8-9", name: "研究室 Lab 8", prof: "宗先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Lab 8-9", name: "研究室 Lab 9", prof: "大澤先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Lab 10-12", name: "研究室 Lab 10", prof: "Yoh先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Lab 10-12", name: "研究室 Lab 11", prof: "笹尾先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Lab 10-12", name: "研究室 Lab 12", prof: "新井先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Lab 13-14", name: "研究室 Lab 13", prof: "須永先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Lab 13-14", name: "研究室 Lab 14", prof: "塚田先生ゼミ室", desc: "", color: "color-blue" },
+        { id: "Project 2", name: "プロジェクト室 2", prof: "", desc: "", color: "color-blue" },
+        { id: "Project 1", name: "プロジェクト室 1", prof: "", desc: "", color: "color-blue" },
+        { id: "Seminar 2", name: "ゼミ室 2", prof: "", desc: "", color: "color-blue" },
+        { id: "401-408", name: "教員室 401", prof: "清田先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 402", prof: "須永先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 403", prof: "大澤先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 404", prof: "宗先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 405", prof: "笹尾先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 406", prof: "新井先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 407", prof: "Yoh先生", desc: "", color: "color-gray" },
+        { id: "401-408", name: "教員室 408", prof: "塚田先生", desc: "", color: "color-gray" }
+      ]
+    };
+
+    let currentFloor = 1;
+
+    // 部屋リストをレンダリングする関数（通常のフロア表示用）
+    function updateRoomList(floorNumber) {
+      currentFloor = floorNumber;
+      document.getElementById('floor-title-label').textContent = `${floorNumber}F`;
+      
+      const container = document.getElementById('room-list-container');
+      container.innerHTML = '';
+      
+      const rooms = floorData[floorNumber];
+      if (rooms) {
+        rooms.forEach(room => {
+          const card = createRoomCard(room, floorNumber, false);
+          container.appendChild(card);
+        });
+      }
+    }
+
+    // 部屋カードを生成する共通ヘルパー（紹介文が空の場合は非表示にする機能付き）
+    function createRoomCard(room, floorNumber, showFloorBadge = false) {
+      const card = document.createElement('div');
+      card.className = `room-card ${room.color}`;
+      
+      // カードクリック時にその部屋のフロアにジャンプする処理
+      card.onclick = () => {
+        switchFloor(floorNumber);
+        // スムーズに画面上部のマップへスクロール
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      const floorBadgeHtml = showFloorBadge ? `<span class="floor-badge">${floorNumber}F</span>` : '';
+      const profBadge = room.prof ? `<div class="professor-badge">👤 : ${room.prof}</div>` : '';
+      const descHtml = room.desc ? `<div class="room-desc">${room.desc}</div>` : '';
+
+      card.innerHTML = `
+        <div class="room-id-wrapper">
+          <div class="room-id">${room.id}</div>
+          ${floorBadgeHtml}
+        </div>
+        <div class="room-name">${room.name}</div>
+        ${profBadge}
+        ${descHtml}
+      `;
+      return card;
+    }
+
+    // 検索入力時のフィルタリング処理
+    function handleSearch() {
+      const query = document.getElementById('room-search').value.toLowerCase().trim();
+      const container = document.getElementById('room-list-container');
+      const titleLabel = document.getElementById('floor-title-label');
+      
+      if (query === '') {
+        // 検索が空なら通常の階表示に戻す
+        updateRoomList(currentFloor);
+        return;
+      }
+
+      titleLabel.textContent = `検索結果`;
+      container.innerHTML = '';
+
+      let matchCount = 0;
+
+      // 1F〜4Fすべての部屋から検索
+      for (let f = 1; f <= 4; f++) {
+        const rooms = floorData[f];
+        rooms.forEach(room => {
+          const idMatch = room.id.toLowerCase().includes(query);
+          const nameMatch = room.name.toLowerCase().includes(query);
+          const profMatch = room.prof.toLowerCase().includes(query);
+          const descMatch = room.desc.toLowerCase().includes(query);
+
+          if (idMatch || nameMatch || profMatch || descMatch) {
+            const card = createRoomCard(room, f, true);
+            container.appendChild(card);
+            matchCount++;
+          }
+        });
+      }
+
+      if (matchCount === 0) {
+        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #86868b; padding: 40px 0;">該当する部屋や先生が見つかりませんでした。</div>`;
+      }
+    }
+
+    // タブ切り替え
+    function switchFloor(floorNumber) {
+      // 検索バーを空にする
+      document.getElementById('room-search').value = '';
+
+      const contents = document.querySelectorAll('.floor-content');
+      contents.forEach(content => content.classList.remove('active'));
+
+      const buttons = document.querySelectorAll('.tab-button');
+      buttons.forEach(button => button.classList.remove('active'));
+
+      document.getElementById(`floor-${floorNumber}`).classList.add('active');
+
+      const buttonIndex = 4 - floorNumber;
+      buttons[buttonIndex].classList.add('active');
+
+      updateRoomList(floorNumber);
+    }
+
+    // 初期化ロード
+    window.onload = function() {
+      updateRoomList(1);
+    };
+  </script>
+
+</body>
+</html>
